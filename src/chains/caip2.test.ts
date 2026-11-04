@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { describe, expect, test } from 'vitest'
 import {
+  chainIdFromCaip2,
   chainIdFromReference,
   chainVm,
   formatCaip2,
@@ -22,7 +23,9 @@ import {
 describe('CAIP-2', () => {
   test.each([
     [1, 'eip155:1'],
+    [0, 'eip155:0'],
     [8453, 'eip155:8453'],
+    [Number.MAX_SAFE_INTEGER, 'eip155:9007199254740991'],
     [792703809, 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'],
     [792703810, 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'],
     [728126428, 'tron:mainnet'],
@@ -32,8 +35,10 @@ describe('CAIP-2', () => {
     [1337002, 'hypercore:perp'],
   ] as const)('formats and parses %i', (id, caip2) => {
     expect(formatCaip2(id)).toBe(caip2)
+    expect(chainIdFromCaip2(caip2)).toBe(id)
     expect(chainIdFromReference(parseCaip2(caip2))).toBe(id)
     expect(isCaip2(caip2)).toBe(true)
+    expect(isEvmCaip2(caip2)).toBe(caip2.startsWith('eip155:'))
   })
 
   test('preserves the legacy HyperCore alias', () => {
@@ -111,6 +116,17 @@ describe('CAIP-2', () => {
     expect(() => toEvmChainReference(792703810)).toThrow('not EVM-compatible')
   })
 
+  test.each([
+    'eip155:9007199254740992',
+    'eip155:9007199254740993',
+    `eip155:1${'0'.repeat(309)}`,
+  ])('rejects EVM chain ids outside the safe integer range: %s', (caip2) => {
+    expect.soft(chainIdFromCaip2(caip2)).toBeUndefined()
+    expect.soft(isCaip2(caip2)).toBe(false)
+    expect.soft(isEvmCaip2(caip2)).toBe(false)
+    expect.soft(() => parseCaip2(caip2)).toThrow('Invalid CAIP-2 chain id')
+  })
+
   test('materializes EVM references and rejects invalid non-EVM references', () => {
     expect(toEvmChainReference(1)).toEqual({
       kind: 'evm',
@@ -130,10 +146,13 @@ describe('CAIP-2', () => {
 
   test('round-trips arbitrary non-negative EVM chain ids', () => {
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 2 ** 31 - 1 }), (chainId) => {
-        const caip2 = `eip155:${chainId}`
-        expect(chainIdFromReference(parseCaip2(caip2))).toBe(chainId)
-      }),
+      fc.property(
+        fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }),
+        (chainId) => {
+          const caip2 = `eip155:${chainId}`
+          expect(chainIdFromReference(parseCaip2(caip2))).toBe(chainId)
+        },
+      ),
     )
   })
 })

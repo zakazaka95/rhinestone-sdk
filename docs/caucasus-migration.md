@@ -527,6 +527,10 @@ so a chain the SDK has no number for stays readable. Numeric chain ids remain
 where they always were: your `Transaction` inputs, viem chain objects, the
 sponsorship callback, and inside signed EIP-712 and EIP-7702 payloads.
 
+When converting an EVM CAIP-2 string to a numeric chain id, the SDK accepts only
+non-negative safe integers (up to `Number.MAX_SAFE_INTEGER`). Larger values are
+rejected rather than rounded to a different chain id.
+
 One exception is deliberate. An intent recorded before the chain registry knew a
 chain keeps a numeric `chainId` and a `vm: 'unknown'` transaction reference:
 

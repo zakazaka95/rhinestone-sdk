@@ -66,6 +66,12 @@ export function isHyperCoreWireId(chainId: number): boolean {
 
 const evmPattern = /^eip155:(0|[1-9]\d*)$/
 
+function evmChainIdFromCaip2(value: string): number | undefined {
+  if (!evmPattern.test(value)) return undefined
+  const id = Number(value.slice('eip155:'.length))
+  return Number.isSafeInteger(id) ? id : undefined
+}
+
 export function formatCaip2(chainId: number): string {
   if (!Number.isSafeInteger(chainId) || chainId < 0) {
     throw new Error(`Invalid chain id: ${chainId}`)
@@ -75,16 +81,15 @@ export function formatCaip2(chainId: number): string {
 }
 
 export function chainIdFromCaip2(value: string): number | undefined {
-  if (evmPattern.test(value)) {
-    return Number(value.slice('eip155:'.length))
-  }
+  const id = evmChainIdFromCaip2(value)
+  if (id !== undefined) return id
   return NON_EVM_CHAINS.find((chain) => chain.caip2 === value)?.id
 }
 
 export function parseCaip2(value: string): ChainReference {
-  if (evmPattern.test(value)) {
-    const id = Number(value.slice('eip155:'.length))
-    return { kind: 'evm', id, caip2: `eip155:${id}` }
+  const evmChainId = evmChainIdFromCaip2(value)
+  if (evmChainId !== undefined) {
+    return { kind: 'evm', id: evmChainId, caip2: `eip155:${evmChainId}` }
   }
   const id = chainIdFromCaip2(value)
   if (id === undefined) {
@@ -150,11 +155,11 @@ export function chainIdFromReference(chain: ChainReference): number {
 }
 
 export function isCaip2(value: string): boolean {
-  return evmPattern.test(value) || chainIdFromCaip2(value) !== undefined
+  return chainIdFromCaip2(value) !== undefined
 }
 
 export function isEvmCaip2(value: string): value is `eip155:${number}` {
-  return evmPattern.test(value)
+  return evmChainIdFromCaip2(value) !== undefined
 }
 
 // True when a numeric chain id is genuinely non-EVM (Solana / Tron / Stellar). Every
